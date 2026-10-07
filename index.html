@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Pylauncher</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #fafafa;
+  --surface: #efefef;
+  --ink: #111111;
+  --soft: #444444;
+  --muted: #777777;
+  --line: #e2e2e2;
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0c0c0d;
+    --surface: #161617;
+    --ink: #ededed;
+    --soft: #b5b5b5;
+    --muted: #808080;
+    --line: #262627;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0c0c0d;
+  --surface: #161617;
+  --ink: #ededed;
+  --soft: #b5b5b5;
+  --muted: #808080;
+  --line: #262627;
+}
+html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+*, *::before, *::after { box-sizing: border-box; }
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: "Geist", system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 16px;
+  line-height: 1.6;
+  text-align: center;
+  -webkit-font-smoothing: antialiased;
+}
+header { padding: 56px 20px 32px; }
+h1 { margin: 0; font-size: 1.5rem; font-weight: 600; letter-spacing: -.02em; }
+.tagline { margin: 6px 0 0; font-size: .95rem; color: var(--muted); }
+nav {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0 26px;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--line);
+}
+nav button {
+  margin-bottom: -1px;
+  padding: 14px 0;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  font: inherit;
+  font-size: .95rem;
+  color: var(--muted);
+  cursor: pointer;
+}
+nav button:hover { color: var(--ink); }
+nav button.active { color: var(--ink); border-bottom-color: var(--ink); font-weight: 500; }
+main { max-width: 820px; margin: 0 auto; padding: 56px 20px 96px; }
+h2 { margin: 0; font-size: 2rem; font-weight: 600; line-height: 1.15; letter-spacing: -.03em; }
+.desc { max-width: 52ch; margin: 16px auto 48px; color: var(--soft); line-height: 1.7; white-space: pre-wrap; }
+.gallery { display: flex; flex-wrap: wrap; justify-content: center; gap: 24px 16px; }
+.item { width: min(100%, 250px); margin: 0; }
+.frame { position: relative; aspect-ratio: 4 / 3; overflow: hidden; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+.frame img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.frame.veiled { cursor: pointer; }
+.frame.veiled img { filter: blur(24px); transform: scale(1.15); }
+.veil { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; background: #00000066; color: #fff; font-size: .85rem; }
+.frame.veiled .veil { display: flex; }
+.frame:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+figcaption { margin-top: 8px; font-size: .85rem; color: var(--muted); }
+#toast {
+  display: none;
+  position: fixed;
+  right: 16px;
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  width: min(320px, calc(100vw - 32px));
+  padding: 14px 40px 14px 16px;
+  background: var(--ink);
+  color: var(--bg);
+  border-radius: 6px;
+  text-align: left;
+  font-size: .9rem;
+  line-height: 1.5;
+  z-index: 10;
+}
+#toast.show { display: block; }
+#toast button { position: absolute; top: 8px; right: 10px; border: 0; background: none; color: inherit; font: inherit; font-size: 1.2rem; line-height: 1; cursor: pointer; opacity: .7; }
+#toast button:hover { opacity: 1; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Pylauncher</h1>
+  <p class="tagline">no one likes bad shitty people in gth!!!</p>
+</header>
+<nav id="tabs"></nav>
+<main id="view"></main>
+<div id="toast" role="status">
+  dont harass anyone
+  <button id="closetoast" aria-label="close">&times;</button>
+</div>
+<script>
+function swatch(label, shade) {
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="640" height="480"><rect width="640" height="480" fill="' + shade + '"/><text x="320" y="250" font-family="sans-serif" font-size="26" fill="#ffffff" text-anchor="middle">' + label + '</text></svg>';
+  return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
+}
+
+const tabs = [
+  {
+    name: 'about',
+    description: 'hi welcome to site\ndont harrass anyone here please ok thanks',
+    images: []
+  },
+  {
+    name: 'goldtro',
+    description: 'goldtro bum',
+    images: [
+      { src: swatch('screenshot', '#555555'), caption: 'visible image' },
+      { src: swatch('screenshot', '#333333'), caption: 'hidden image', hidden: true }
+    ]
+  },
+  {
+    name: 'ssssssssssss',
+    description: 'idk',
+    images: []
+  }
+];
+
+const nav = document.getElementById('tabs');
+const view = document.getElementById('view');
+const toast = document.getElementById('toast');
+const revealed = new Set();
+let active = 0;
+
+function el(tag, props = {}, ...kids) {
+  const node = document.createElement(tag);
+  for (const [key, val] of Object.entries(props)) {
+    if (key === 'class') node.className = val;
+    else if (key.startsWith('on')) node.addEventListener(key.slice(2), val);
+    else if (key in node) node[key] = val;
+    else node.setAttribute(key, val);
+  }
+  node.append(...kids);
+  return node;
+}
+
+function drawtabs() {
+  nav.replaceChildren(...tabs.map((tab, index) => el('button', {
+    class: index === active ? 'active' : '',
+    textContent: tab.name,
+    onclick: () => { active = index; draw(); }
+  })));
+}
+
+function drawimage(image, index) {
+  const key = active + ':' + index;
+  const veiled = image.hidden && !revealed.has(key);
+  const frame = el('div', { class: 'frame' + (veiled ? ' veiled' : '') }, el('img', { src: image.src, alt: image.caption || '' }));
+
+  if (image.hidden) {
+    const flip = () => {
+      if (revealed.has(key)) revealed.delete(key);
+      else revealed.add(key);
+      drawview();
+    };
+    frame.tabIndex = 0;
+    frame.addEventListener('click', flip);
+    frame.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); flip(); } });
+    frame.append(el('div', { class: 'veil', textContent: 'hidden, click to reveal' }));
+  }
+
+  const item = el('figure', { class: 'item' }, frame);
+  if (image.caption) item.append(el('figcaption', { textContent: image.caption }));
+  return item;
+}
+
+function drawview() {
+  const tab = tabs[active];
+  view.replaceChildren(
+    el('h2', { textContent: tab.name }),
+    el('p', { class: 'desc', textContent: tab.description })
+  );
+  if (tab.images.length) view.append(el('div', { class: 'gallery' }, ...tab.images.map(drawimage)));
+}
+
+function draw() {
+  drawtabs();
+  drawview();
+}
+
+let toasttimer;
+function hidetoast() {
+  toast.classList.remove('show');
+  clearTimeout(toasttimer);
+}
+function showtoast() {
+  toast.classList.add('show');
+  toasttimer = setTimeout(hidetoast, 10000);
+}
+document.getElementById('closetoast').addEventListener('click', hidetoast);
+
+draw();
+showtoast();
+</script>
+</body>
+</html>
