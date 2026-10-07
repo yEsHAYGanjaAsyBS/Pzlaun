@@ -88,6 +88,61 @@ h2 { margin: 0; font-size: 2rem; font-weight: 600; line-height: 1.15; letter-spa
 .frame.veiled .veil { display: flex; }
 .frame:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
 figcaption { margin-top: 8px; font-size: .85rem; color: var(--muted); overflow-wrap: anywhere; }
+.frame.openable { cursor: zoom-in; }
+.rehide { position: absolute; top: 6px; right: 6px; padding: 2px 8px; border: 0; border-radius: 4px; background: #000000aa; color: #fff; font: inherit; font-size: .75rem; cursor: pointer; opacity: 0; transition: opacity .15s; }
+.frame:hover .rehide, .rehide:focus-visible { opacity: 1; }
+@media (hover: none) { .rehide { opacity: 1; } }
+#lightbox { display: none; position: fixed; inset: 0; z-index: 20; background: rgba(0, 0, 0, .94); color: #fff; text-align: center; }
+#lightbox.open { display: block; }
+#lbstage {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  padding: calc(56px + env(safe-area-inset-top, 0px)) 72px calc(96px + env(safe-area-inset-bottom, 0px));
+}
+#lbimg { max-width: 100%; max-height: 100%; object-fit: contain; display: block; transform-origin: center; will-change: transform; cursor: zoom-in; -webkit-user-drag: none; }
+#lbimg.zoomed { cursor: grab; }
+#lbimg.dragging { cursor: grabbing; }
+.lbbtn {
+  position: absolute;
+  z-index: 2;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 999px;
+  background: #ffffff1f;
+  color: #fff;
+  font: inherit;
+  font-size: 1.6rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.lbbtn[hidden] { display: none; }
+.lbbtn:hover { background: #ffffff38; }
+.lbbtn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+#lbclose { top: calc(12px + env(safe-area-inset-top, 0px)); right: calc(12px + env(safe-area-inset-right, 0px)); }
+#lbprev { left: calc(12px + env(safe-area-inset-left, 0px)); top: 50%; margin-top: -22px; }
+#lbnext { right: calc(12px + env(safe-area-inset-right, 0px)); top: 50%; margin-top: -22px; }
+#lbcount { position: absolute; z-index: 2; top: calc(22px + env(safe-area-inset-top, 0px)); left: calc(16px + env(safe-area-inset-left, 0px)); font-size: .85rem; color: #ddd; }
+#lbbar { position: absolute; z-index: 2; left: 0; right: 0; bottom: 0; padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px)); pointer-events: none; }
+#lbbar > * { pointer-events: auto; }
+#lbcap { margin-bottom: 8px; font-size: .85rem; color: #ddd; overflow-wrap: anywhere; }
+#lbtools { display: inline-flex; align-items: center; gap: 6px; }
+#lbtools .lbbtn { position: static; width: 36px; height: 36px; font-size: 1.2rem; }
+#lbtools .lbbtn.lbtext { width: auto; padding: 0 14px; font-size: .85rem; }
+#lbzoom { min-width: 3.6em; font-size: .85rem; font-variant-numeric: tabular-nums; }
+@media (max-width: 640px) {
+  #lbstage { padding-left: 8px; padding-right: 8px; }
+}
 #toast {
   display: none;
   position: fixed;
@@ -118,6 +173,22 @@ figcaption { margin-top: 8px; font-size: .85rem; color: var(--muted); overflow-w
 <div id="toast" role="status">
   dont harass anyone
   <button id="closetoast" aria-label="close">&times;</button>
+</div>
+<div id="lightbox" role="dialog" aria-modal="true" aria-label="image viewer">
+  <div id="lbstage"><img id="lbimg" alt="" draggable="false"></div>
+  <div id="lbcount"></div>
+  <button class="lbbtn" id="lbclose" aria-label="close">&times;</button>
+  <button class="lbbtn" id="lbprev" aria-label="previous image">&#8249;</button>
+  <button class="lbbtn" id="lbnext" aria-label="next image">&#8250;</button>
+  <div id="lbbar">
+    <div id="lbcap"></div>
+    <div id="lbtools">
+      <button class="lbbtn" id="lbout" aria-label="zoom out">&minus;</button>
+      <span id="lbzoom">100%</span>
+      <button class="lbbtn" id="lbin" aria-label="zoom in">+</button>
+      <button class="lbbtn lbtext" id="lbreset">reset</button>
+    </div>
+  </div>
 </div>
 <script>
 const repo = { owner: 'yEsHAYGanjaAsyBS', name: 'Pzlaun', branch: 'main' };
@@ -190,7 +261,7 @@ async function listfolder(folder, r) {
   if (cached) return cached;
 
   const res = await fetch(url, { headers: { Accept: 'application/vnd.github+json' } });
-  if (res.status === 404) throw new Error('folder "' + folder + '" not found ');
+  if (res.status === 404) throw new Error('folder "' + folder + '" not found (check owner / repo / branch / folder name, and that the repo is public)');
   if (res.status === 403) throw new Error('github rate limit hit, try again in a few minutes');
   if (!res.ok) throw new Error('github error ' + res.status);
 
@@ -237,22 +308,51 @@ function drawtabs() {
   })));
 }
 
+function keyOf(image, index) {
+  return tabs[active].name + ':' + (image.file || index);
+}
+
+function isVeiled(image, index) {
+  return image.hidden && !revealed.has(keyOf(image, index));
+}
+
+function focusframe(key) {
+  const frame = [...view.querySelectorAll('.frame')].find(f => f.dataset.key === key);
+  if (frame) frame.focus();
+}
+
 function drawimage(image, index) {
-  const key = tabs[active].name + ':' + (image.file || index);
-  const veiled = image.hidden && !revealed.has(key);
-  const frame = el('div', { class: 'frame' + (veiled ? ' veiled' : '') },
+  const key = keyOf(image, index);
+  const veiled = isVeiled(image, index);
+  const frame = el('div', { class: 'frame' + (veiled ? ' veiled' : ' openable'), tabIndex: 0 },
     el('img', { src: image.src, alt: image.caption || image.file || '', loading: 'lazy' }));
+  frame.dataset.key = key;
+  frame.setAttribute('role', 'button');
+  frame.setAttribute('aria-label', veiled ? 'reveal hidden image' : 'open image');
+
+  const act = () => {
+    if (veiled) {
+      revealed.add(key);
+      drawview();
+      focusframe(key);
+    } else {
+      lbopen(index);
+    }
+  };
+  frame.addEventListener('click', act);
+  frame.addEventListener('keydown', e => {
+    if (e.target === frame && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); act(); }
+  });
 
   if (image.hidden) {
-    const flip = () => {
-      if (revealed.has(key)) revealed.delete(key);
-      else revealed.add(key);
-      drawview();
-    };
-    frame.tabIndex = 0;
-    frame.addEventListener('click', flip);
-    frame.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); flip(); } });
     frame.append(el('div', { class: 'veil', textContent: 'hidden, click to reveal' }));
+    if (!veiled) {
+      frame.append(el('button', {
+        class: 'rehide',
+        textContent: 'hide',
+        onclick: e => { e.stopPropagation(); revealed.delete(key); drawview(); focusframe(key); }
+      }));
+    }
   }
 
   const item = el('figure', { class: 'item' }, frame);
@@ -277,6 +377,206 @@ function draw() {
   drawview();
   loadtab(tabs[active]);
 }
+
+const lightbox = document.getElementById('lightbox');
+const lbstage = document.getElementById('lbstage');
+const lbimg = document.getElementById('lbimg');
+const lbcap = document.getElementById('lbcap');
+const lbcount = document.getElementById('lbcount');
+const lbzoom = document.getElementById('lbzoom');
+const btnClose = document.getElementById('lbclose');
+const btnPrev = document.getElementById('lbprev');
+const btnNext = document.getElementById('lbnext');
+const btnIn = document.getElementById('lbin');
+const btnOut = document.getElementById('lbout');
+const btnReset = document.getElementById('lbreset');
+
+const MAX_ZOOM = 8;
+const ZOOM_STEP = 1.25;
+const lb = { list: [], pos: 0, s: 1, x: 0, y: 0, open: false, lastKey: null };
+
+function lbapply() {
+  lbimg.style.transform = 'translate(' + lb.x + 'px,' + lb.y + 'px) scale(' + lb.s + ')';
+  lbimg.classList.toggle('zoomed', lb.s > 1);
+  lbzoom.textContent = Math.round(lb.s * 100) + '%';
+}
+
+function lbclamp() {
+  const maxX = Math.max(0, (lbimg.offsetWidth * lb.s - lbstage.clientWidth) / 2);
+  const maxY = Math.max(0, (lbimg.offsetHeight * lb.s - lbstage.clientHeight) / 2);
+  lb.x = Math.min(maxX, Math.max(-maxX, lb.x));
+  lb.y = Math.min(maxY, Math.max(-maxY, lb.y));
+}
+
+function lbzoomto(next, cx, cy) {
+  next = Math.min(MAX_ZOOM, Math.max(1, next));
+  const rect = lbstage.getBoundingClientRect();
+  const midX = rect.left + rect.width / 2;
+  const midY = rect.top + rect.height / 2;
+  const px = (cx === undefined ? midX : cx) - midX;
+  const py = (cy === undefined ? midY : cy) - midY;
+  const ratio = next / lb.s;
+  lb.x = px - (px - lb.x) * ratio;
+  lb.y = py - (py - lb.y) * ratio;
+  lb.s = next;
+  lbclamp();
+  lbapply();
+}
+
+function lbreset() {
+  lb.s = 1;
+  lb.x = 0;
+  lb.y = 0;
+  lbapply();
+}
+
+function lbshow() {
+  const entry = lb.list[lb.pos];
+  const label = entry.image.caption || entry.image.file || '';
+  lbimg.src = entry.image.src;
+  lbimg.alt = label;
+  lbcap.textContent = label;
+  lbcount.textContent = (lb.pos + 1) + ' / ' + lb.list.length;
+  const many = lb.list.length > 1;
+  btnPrev.hidden = !many;
+  btnNext.hidden = !many;
+  lb.lastKey = entry.key;
+  lbreset();
+  if (many) {
+    [1, -1].forEach(d => {
+      const near = lb.list[(lb.pos + d + lb.list.length) % lb.list.length];
+      new Image().src = near.image.src;
+    });
+  }
+}
+
+function lbstep(d) {
+  if (lb.list.length < 2) return;
+  lb.pos = (lb.pos + d + lb.list.length) % lb.list.length;
+  lbshow();
+}
+
+function lbopen(index) {
+  lb.list = tabs[active].items
+    .map((image, i) => ({ image, i, key: keyOf(image, i) }))
+    .filter(o => !isVeiled(o.image, o.i));
+  lb.pos = Math.max(0, lb.list.findIndex(o => o.i === index));
+  lb.open = true;
+  lightbox.classList.add('open');
+  document.body.style.overflow = 'hidden';
+  lbshow();
+  btnClose.focus();
+}
+
+function lbshut() {
+  lb.open = false;
+  lightbox.classList.remove('open');
+  document.body.style.overflow = '';
+  lbimg.removeAttribute('src');
+  focusframe(lb.lastKey);
+}
+
+btnClose.addEventListener('click', lbshut);
+btnPrev.addEventListener('click', () => lbstep(-1));
+btnNext.addEventListener('click', () => lbstep(1));
+btnIn.addEventListener('click', () => lbzoomto(lb.s * ZOOM_STEP));
+btnOut.addEventListener('click', () => lbzoomto(lb.s / ZOOM_STEP));
+btnReset.addEventListener('click', lbreset);
+
+document.addEventListener('keydown', e => {
+  if (!lb.open) return;
+  if (e.key === 'Tab') {
+    const f = [btnClose, btnPrev, btnNext, btnOut, btnReset, btnIn].filter(b => !b.hidden);
+    const i = f.indexOf(document.activeElement);
+    if (e.shiftKey && i <= 0) { f[f.length - 1].focus(); e.preventDefault(); }
+    else if (!e.shiftKey && (i === -1 || i === f.length - 1)) { f[0].focus(); e.preventDefault(); }
+    return;
+  }
+  if (e.key === 'Escape') lbshut();
+  else if (e.key === 'ArrowLeft') lbstep(-1);
+  else if (e.key === 'ArrowRight') lbstep(1);
+  else if (e.key === '+' || e.key === '=') lbzoomto(lb.s * ZOOM_STEP);
+  else if (e.key === '-' || e.key === '_') lbzoomto(lb.s / ZOOM_STEP);
+  else if (e.key === '0') lbreset();
+  else return;
+  e.preventDefault();
+});
+
+lbstage.addEventListener('wheel', e => {
+  e.preventDefault();
+  const speed = e.ctrlKey ? 0.01 : 0.002;
+  lbzoomto(lb.s * Math.exp(-e.deltaY * speed), e.clientX, e.clientY);
+}, { passive: false });
+
+lbimg.addEventListener('dblclick', e => {
+  lbzoomto(lb.s > 1 ? 1 : 2.5, e.clientX, e.clientY);
+});
+
+lbimg.addEventListener('load', () => { lbclamp(); lbapply(); });
+window.addEventListener('resize', () => { if (lb.open) { lbclamp(); lbapply(); } });
+
+const pointers = new Map();
+let gesture = null;
+let closeOnClick = false;
+
+lbstage.addEventListener('pointerdown', e => {
+  closeOnClick = false;
+  try { lbstage.setPointerCapture(e.pointerId); } catch (err) {}
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (pointers.size === 1) {
+    gesture = { sx: e.clientX, sy: e.clientY, tx: lb.x, ty: lb.y, moved: false, onImg: e.target === lbimg, pinch: false };
+  } else if (pointers.size === 2) {
+    const [a, b] = [...pointers.values()];
+    gesture = { pinch: true, moved: true, dist: Math.hypot(a.x - b.x, a.y - b.y) || 1, scale: lb.s };
+  }
+});
+
+lbstage.addEventListener('pointermove', e => {
+  if (!pointers.has(e.pointerId) || !gesture) return;
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (gesture.pinch) {
+    if (pointers.size < 2) return;
+    const [a, b] = [...pointers.values()];
+    const dist = Math.hypot(a.x - b.x, a.y - b.y);
+    lbzoomto(gesture.scale * dist / gesture.dist, (a.x + b.x) / 2, (a.y + b.y) / 2);
+  } else {
+    const dx = e.clientX - gesture.sx;
+    const dy = e.clientY - gesture.sy;
+    if (Math.hypot(dx, dy) > 6) gesture.moved = true;
+    if (lb.s > 1 && gesture.moved) {
+      lb.x = gesture.tx + dx;
+      lb.y = gesture.ty + dy;
+      lbclamp();
+      lbapply();
+      lbimg.classList.add('dragging');
+    }
+  }
+});
+
+function endpointer(e) {
+  if (!pointers.has(e.pointerId)) return;
+  const g = gesture;
+  pointers.delete(e.pointerId);
+  lbimg.classList.remove('dragging');
+  if (pointers.size === 0) {
+    if (g && !g.pinch && e.type === 'pointerup') {
+      const dx = e.clientX - g.sx;
+      const dy = e.clientY - g.sy;
+      if (!g.moved && !g.onImg) closeOnClick = true;
+      else if (g.moved && lb.s === 1 && Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) lbstep(dx < 0 ? 1 : -1);
+    }
+    gesture = null;
+  } else if (pointers.size === 1) {
+    const [p] = [...pointers.values()];
+    gesture = { sx: p.x, sy: p.y, tx: lb.x, ty: lb.y, moved: true, onImg: true, pinch: false };
+  }
+}
+lbstage.addEventListener('pointerup', endpointer);
+lbstage.addEventListener('pointercancel', endpointer);
+
+lbstage.addEventListener('click', () => {
+  if (closeOnClick) { closeOnClick = false; lbshut(); }
+});
 
 let toasttimer;
 function hidetoast() {
